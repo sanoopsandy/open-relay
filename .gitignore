@@ -22,7 +22,10 @@ electron.vite.config.*.mjs
 # Editor / workspace
 harness.code-workspace
 *.code-workspace
+
+# macOS
 .DS_Store
+**/.DS_Store
 
 # Logs
 logs/
