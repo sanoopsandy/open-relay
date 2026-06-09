@@ -1,0 +1,165 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Design tokens — Granola-inspired warm light ───────────────────────────── */
+:root {
+  /* Backgrounds */
+  --bg-base:     #fafaf7;   /* warm off-white */
+  --bg-sidebar:  #f3f2ed;   /* slightly recessed */
+  --bg-chat:     #fafaf7;
+  --bg-input:    #eeeDE8;   /* input / surface 1 */
+  --bg-hover:    #e8e7e1;   /* hover */
+  --bg-active:   #e0dfd9;   /* selected / pressed */
+  --bg-overlay:  #f5f4f0;   /* floating overlays */
+
+  /* Text */
+  --text-primary:   #1c1c1a;  /* near-black, warm */
+  --text-secondary: #72726e;  /* medium warm gray */
+  --text-muted:     #9e9e99;  /* light warm gray */
+
+  /* Borders */
+  --border:       #d8d7d0;
+  --border-focus: #a8a7a0;
+
+  /* Accent — Granola olive green */
+  --accent:       #5b6f00;
+  --accent-hover: #4a5a00;
+  --accent-dim:   #e5eacd;
+
+  /* Scrollbar */
+  --scrollbar:       #d0cfc8;
+  --scrollbar-hover: #b0afa8;
+}
+
+/* ─── Base reset ────────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ─── Scrollbars ────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-hover);
+}
+
+/* ─── macOS traffic-light drag region ──────────────────────────────────────── */
+.drag-region {
+  -webkit-app-region: drag;
+}
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* ─── Panel transitions ─────────────────────────────────────────────────────── */
+.sidebar-panel {
+  transition: width 200ms ease;
+  will-change: width;
+}
+
+/* data-layout attribute drives body-level layout state for CSS queries */
+[data-layout~="browser-visible"] .browser-panel {
+  display: flex;
+}
+[data-layout~="browser-hidden"] .browser-panel,
+:not([data-layout~="browser-visible"]) .browser-panel {
+  display: none;
+}
+
+/* ─── Cursor blink animation ─────────────────────────────────────────────────── */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+.animate-blink {
+  animation: blink 1s step-start infinite;
+}
+
+/* ─── Font mono ─────────────────────────────────────────────────────────────── */
+.font-mono {
+  font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+}
+
+/* ─── Selection ─────────────────────────────────────────────────────────────── */
+::selection {
+  background: var(--accent-dim);
+  color: var(--text-primary);
+}
+
+/* ─── Focus outline ─────────────────────────────────────────────────────────── */
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ─── Prose overrides for light theme ───────────────────────────────────────── */
+.prose {
+  color: var(--text-primary);
+}
+.prose h1, .prose h2, .prose h3, .prose h4 {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.prose strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.prose code {
+  background: var(--bg-input);
+  color: var(--text-primary);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-size: 0.85em;
+  border: 1px solid var(--border);
+}
+.prose pre {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+.prose pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+.prose a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.prose a:hover {
+  color: var(--accent-hover);
+}
+.prose blockquote {
+  border-left-color: var(--border-focus);
+  color: var(--text-secondary);
+}
+.prose hr {
+  border-color: var(--border);
+}
+.prose thead {
+  border-bottom-color: var(--border);
+}
+.prose tbody tr {
+  border-bottom-color: var(--border);
+}

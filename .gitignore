@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build output
+out/
+dist/
+
+# Environment & secrets
+.env
+.env.*
+*.env.local
+
+# Claude Code workspace files (private instructions, settings)
+.claude/
+
+# TypeScript build cache
+*.tsbuildinfo
+
+# Electron Vite generated configs
+electron.vite.config.*.mjs
+
+# Editor / workspace
+harness.code-workspace
+*.code-workspace
+.DS_Store
+
+# Logs
+logs/
+*.log

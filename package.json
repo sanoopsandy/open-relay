@@ -1,0 +1,65 @@
+{
+  "name": "relay",
+  "version": "0.1.0",
+  "description": "Mac desktop AI agent with persistent memory",
+  "main": "out/main/index.js",
+  "author": "Sanoop",
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts,.tsx",
+    "rebuild": "electron-rebuild --arch arm64 -f -w better-sqlite3 && cp node_modules/kuzu/prebuilt/kuzujs-darwin-arm64.node node_modules/kuzu/kuzujs.node",
+    "postinstall": "/usr/libexec/PlistBuddy -c 'Set :CFBundleName Relay' -c 'Set :CFBundleDisplayName Relay' node_modules/electron/dist/Electron.app/Contents/Info.plist && codesign --force --deep --sign - node_modules/electron/dist/Electron.app || true"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.0",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@slack/web-api": "^7.16.0",
+    "@tanstack/react-query": "^5.59.0",
+    "better-sqlite3": "^11.3.0",
+    "highlight.js": "^11.11.1",
+    "kuzu": "^0.7.0",
+    "node-cron": "^4.2.1",
+    "openai": "^4.67.0",
+    "pino": "^9.5.0",
+    "pino-roll": "^1.0.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/typography": "^0.5.19",
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^22.9.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "autoprefixer": "^10.4.20",
+    "electron": "^31.0.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "pino-pretty": "^13.0.0",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  },
+  "build": {
+    "appId": "in.finbox.relay",
+    "productName": "Relay",
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": "dmg",
+      "icon": "build/icon.icns"
+    },
+    "files": [
+      "out/**/*",
+      "resources/**/*"
+    ]
+  }
+}
