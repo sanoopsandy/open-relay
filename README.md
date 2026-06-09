@@ -3,108 +3,140 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/sanoopsandy/relay/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License" /></a>
+  <a href="https://github.com/sanoopsandy/open-relay/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License" /></a>
   <img src="https://img.shields.io/badge/platform-macOS-lightgrey?style=flat-square&logo=apple" alt="macOS" />
   <img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen?style=flat-square&logo=node.js" alt="Node 20+" />
   <img src="https://img.shields.io/badge/built%20with-Electron-47848f?style=flat-square&logo=electron" alt="Electron" />
-  <a href="https://github.com/sanoopsandy/relay/stargazers"><img src="https://img.shields.io/github/stars/sanoopsandy/relay?style=flat-square&color=f5a623" alt="Stars" /></a>
+  <a href="https://github.com/sanoopsandy/open-relay/stargazers"><img src="https://img.shields.io/github/stars/sanoopsandy/open-relay?style=flat-square&color=f5a623" alt="Stars" /></a>
 </p>
 
 <p align="center">
-  <strong>Open-source Mac desktop AI workspace with persistent memory, smart context, and workflow automation.</strong><br/>
+  <strong>Open-source Mac desktop AI workspace that reduces token cost as your conversations grow longer.</strong><br/>
   Works with Claude, GPT-4o, Gemini, Groq, and Ollama.
 </p>
 
 ---
 
-## The problem
+## The problem with AI cost at scale
 
-Every AI session starts from zero. Your product context, sprint state, architecture decisions, research notes — none of it carries over. You paste the same background into every conversation, every day.
+Every AI message you send includes the full conversation history. Turn 10 sends turns 1–9 as context. Turn 20 sends turns 1–19. Token cost compounds linearly — and most of it is redundant context the model doesn't need.
 
-Relay fixes this. It builds a persistent memory layer from your conversations, retrieves only what's relevant on each message, and gets smarter the longer you use it. Connect it to Slack and Jira and it keeps your team context fresh automatically.
+Most AI apps don't solve this. They send everything, every time.
 
----
-
-## How it works
-
-```
-Every message you send
-  ↓
-Relay searches memory (BM25 + vector similarity + knowledge graph)
-  ↓
-Injects only the relevant context — not full history
-  ↓
-AI already knows your sprint state, your decisions, your constraints
-```
-
-**Token impact — measured on a real conversation:**
-
-| Turn | With Relay | Without Relay | Saved |
-|------|-----------|---------------|-------|
-| 1–2  | 1,222 / 1,458 | same | — |
-| 3    | 5,322 | 5,360 | 38 |
-| 4    | 5,471 | 6,187 | 716 |
-| **5** | **2,414** | **5,878** | **3,464** |
-| **6** | **1,890** | **6,078** | **4,188** |
-| **Total** | **17,777** | **26,183** | **8,406 (32%)** |
-
-*Savings compound with conversation length. A 20-turn ideation session saves an estimated $1.60+ on Opus pricing.*
+**Relay sends only what matters.**
 
 ---
 
-## Features
+## How Relay keeps tokens flat
 
-### Persistent Memory
-- Conversations are automatically indexed and key facts extracted into memory
-- Manual save: `/add-to-memory <theme> <content>`
-- Organised by themes you define: `sprint-42`, `architecture`, `competitors`, `team`
-- BM25 full-text search + recency decay — relevant items surface automatically
-- Browse and manage in the **Memory Pane** (timeline view, add/delete inline)
+Instead of growing the context window unboundedly, Relay assembles a precise, optimised context on every message using three layers:
 
-### Smart Context (GraphRAG)
-- Every turn embedded into a local vector store (SQLite — no external DB)
-- Entities extracted and linked in a [Kuzu](https://kuzudb.com) knowledge graph
-- At each message: vector search + 1-hop graph expansion + session summary injected as context
-- Past conversations surface when relevant — even if you never explicitly saved them
+```
+┌─────────────────────────────────────────────────────┐
+│  System prompt + personality                        │
+├─────────────────────────────────────────────────────┤
+│  Smart context block (auto-assembled)               │
+│    • Session summary — rolling compression          │  ← replaces old turns
+│    • Retrieved memory — semantically relevant facts │  ← replaces re-explaining
+│    • Related past sessions — cross-conv retrieval   │  ← from the knowledge graph
+├─────────────────────────────────────────────────────┤
+│  Last 4 turns verbatim (recency)                   │  ← recent context only
+├─────────────────────────────────────────────────────┤
+│  Current message                                    │
+└─────────────────────────────────────────────────────┘
+```
+
+**What this means in practice:**
+
+- Old turns get **compressed into a rolling summary** — not dropped, not repeated verbatim
+- Facts you've established get stored in **persistent memory** and retrieved when relevant — so you never re-explain your context
+- The knowledge graph surfaces **semantically related content from past conversations** — without you having to find or paste it
+
+The result: token usage plateaus instead of growing with every turn.
+
+---
+
+## Token usage in practice
+
+<p align="center">
+  <img src="assets/usage.png" alt="Token usage plateaus with Relay instead of growing linearly" width="100%" />
+</p>
+
+This is a real session — 10 turns, 42,445 tokens in, $0.36 total. Without Relay sending full history each turn, the same conversation would have cost ~$0.54. **Relay saved 21,907 tokens (34%)** purely through context assembly — no manual effort.
+
+**The plateau is the signal.** Without Relay, the input token line grows steeply with every turn. With Relay's context assembly, it levels off as memory and summarisation replace raw history.
+
+Savings compound on longer conversations:
+
+| Conversation length | Estimated saving |
+|--------------------|-----------------|
+| 10 turns | ~30–35% |
+| 20 turns | ~50–60% |
+| 40+ turns | ~70–80% |
+
+*Measured on Claude Sonnet. Savings vary by model and conversation density.*
+
+---
+
+## Persistent memory: context that carries across sessions
+
+Token savings within a session are only half the story. Relay also eliminates the cost of re-establishing context at the start of every new conversation.
+
+**How it works:**
+
+1. Every assistant response is embedded and indexed into a local vector store
+2. Key facts are automatically extracted and saved to a themed memory layer
+3. On each new message, Relay searches memory (BM25 + vector similarity + knowledge graph) and injects only what's relevant — not everything
+
+```
+/add-to-memory sprint-42 Sprint ends Friday. Auth service is the critical path.
+                          Blocked on prod cert renewal (expires June 8).
+```
+
+Next session, next week — ask about sprint-42 and Relay already has the context. You don't re-paste it. Those tokens are never sent again.
+
+**Memory is organised by themes you define:**
+`sprint-42` · `architecture` · `competitors` · `product` · `team`
+
+---
+
+## Auto-memory: learns from every conversation
+
+You don't have to save everything manually. Relay watches your conversations and promotes important turns into persistent memory automatically:
+
+- Every turn is embedded after streaming completes
+- Turns from substantive conversations (6+ turns) are promoted to memory after LLM extraction
+- Extraction strips preamble and keeps only facts, numbers, decisions, and structured data
 - Frequency-weighted retrieval: topics you return to often rank higher automatically
+- 90-day TTL on auto-captured items; manual memory never expires
 
-### Multi-Provider AI
-- **Claude** (Opus, Sonnet, Haiku), **GPT-4o**, **Gemini**, **Groq**, **Ollama** (local, free)
-- Switch provider and model live from Settings without restarting
-- Attach images, PDFs, and code files — sent as native content blocks
-
-### Workflow Automation
-- Cron-based schedulers that run AI skills against your tools
-- **Sprint Analysis Skill**: reads Slack, cross-references your sprint plan from memory, flags each team member green / yellow / red
-- Missed runs are caught on startup — no missed daily reports if your laptop was closed
-- Full run history in the Schedulers panel
-
-### Tool Integrations
-| Tool | What Relay does |
-|------|----------------|
-| **Slack** | Read channel messages, list members, optionally post summaries |
-| **Jira** | API token configured (issue fetch coming soon) |
-| **GitHub** | Personal access token configured (PR/issue context coming soon) |
-
-### Artifacts
-- Code, HTML, JSON, CSV, and scripts the AI generates surface as named downloadable artifacts
-- Syntax highlighting for 150+ languages (highlight.js)
-- Persist across restarts and link back to the originating conversation
-
-### Slash Commands
-
-| Command | Action |
-|---------|--------|
-| `/add-to-memory <theme> <note>` | Save to memory |
-| `/memory` | Toggle memory pane |
-| `/new` | New conversation |
-| `/clear` | Clear current conversation |
-| `/logs` | Open structured log viewer |
-| `/help` | List all commands |
+The memory layer gets denser and more accurate the longer you use Relay — without any manual curation.
 
 ---
 
-## Getting Started
+## GraphRAG: memory that spans conversations
+
+Beyond simple keyword retrieval, Relay builds a **knowledge graph** of your ideas and their connections:
+
+- Entities extracted from each turn become nodes in a [Kuzu](https://kuzudb.com) graph
+- Related turns from past conversations surface via 1-hop graph traversal
+- Semantic vector search finds relevant content even when wording differs
+
+When you ask about something discussed two weeks ago, Relay finds it — even if you never explicitly saved it.
+
+**Retrieval scoring combines three signals:**
+
+```
+score = semantic_similarity × 0.35
+      + recency_decay × 0.35
+      + frequency_boost × 0.30
+```
+
+Frequently-retrieved content scores higher over time. The system learns what matters to you.
+
+---
+
+## Getting started
 
 ### Requirements
 
@@ -115,8 +147,8 @@ AI already knows your sprint state, your decisions, your constraints
 ### Install & run
 
 ```bash
-git clone https://github.com/sanoopsandy/relay.git
-cd relay
+git clone https://github.com/sanoopsandy/open-relay.git
+cd open-relay
 npm install
 npm run rebuild   # fixes native binaries (better-sqlite3, Kuzu) for your architecture
 npm run dev
@@ -132,30 +164,46 @@ npm run build     # produces a .dmg installer in dist/
 
 ---
 
-## Example: daily sprint check-in
+## Features
 
-**1. Save your sprint plan once**
-```
-/add-to-memory sprint-42
-Goal: Ship v2 payments by end of quarter.
-Team: Alice + Bob → infra, Carol → Stripe migration, Dave → auth refactor, Eve → API gateway
-Critical path: auth → API gateway → payment gateway
-Risk: prod cert expires June 8
-```
+### AI Chat
+- Streaming responses from **Claude**, **GPT-4o**, **Gemini**, **Groq**, and **Ollama**
+- Switch provider and model live from Settings without restarting
+- Attach images, PDFs, and code files — sent as native content blocks
+- Conversations auto-titled after the first exchange
 
-**2. Connect Slack** — Settings → Connectors → Slack (needs `channels:history`, `users:read`)
+### Memory & Context
+- Auto-memory: key facts extracted from every conversation automatically
+- Manual save: `/add-to-memory <theme> <content>`
+- Memory pane — browse, edit, and delete by theme
+- GraphRAG retrieval: vector search + Kuzu knowledge graph + session summarisation
 
-**3. Create a scheduler** — Settings → Schedulers → New → `0 9 * * 1-5`
+### Usage & Savings Tracking
+- Per-conversation token and cost breakdown
+- **Savings card** — shows exact $ saved and % reduction from context assembly
+- **Plateau chart** — visualises tokens-per-turn flattening as memory kicks in
+- Input bar token meter — live estimate before sending
 
-**What runs at 9am every weekday:**
-```
-🟢 Alice — Infrastructure cost reduction PR merged. Moving to RDS instance review.
-🟡 Dave  — No update in the last 24h. Auth refactor was blocked yesterday.
-🔴 Carol — Explicitly blocked: "waiting on Stripe sandbox credentials from finance"
-⚠️  Eve  — Rate limiting task not started. Sprint ends in 3 days.
-```
+### Slash Commands
 
-No standup notes to maintain. No spreadsheet to update.
+| Command | Action |
+|---------|--------|
+| `/add-to-memory <theme> <note>` | Save to memory |
+| `/memory` | Toggle memory pane |
+| `/new` | New conversation |
+| `/clear` | Clear current conversation |
+| `/logs` | Structured log viewer |
+| `/help` | List all commands |
+
+### Artifacts
+- Code, HTML, JSON, CSV, and scripts surface as named downloadable artifacts
+- Syntax highlighting for 150+ languages
+- Persist across restarts
+
+### Workflow Automation
+- Cron-based schedulers that run AI skills against your tools
+- **Sprint Analysis Skill**: reads Slack, cross-references memory, flags team members
+- Connect Slack, Jira, and GitHub in Settings → Connectors
 
 ---
 
@@ -179,27 +227,7 @@ Main process (Node.js)
     └── ConfigManager       encrypted config via safeStorage
 ```
 
-**Context sent on every message:**
-```
-[system prompt + personality]
-[<context> session summary + retrieved memory + past session turns </context>]
-[last 4 turns verbatim]
-[current user message]
-```
-
 **Tech stack:** Electron · React 18 · TypeScript · Vite · Tailwind CSS · Zustand · better-sqlite3 · Kuzu · pino · Anthropic SDK · OpenAI SDK · node-cron · @slack/web-api
-
----
-
-## Use cases
-
-| Who | How they use Relay |
-|-----|-------------------|
-| **Product managers** | Sprint plans, decisions, competitor notes persist across every session |
-| **Engineers** | Architecture decisions, ADRs, and known constraints surface automatically |
-| **Researchers** | Ideas from past conversations resurface when a related topic comes up |
-| **Writers** | Style guide and audience stay in memory — every draft starts from the same baseline |
-| **Teams** | Daily scheduler reads Slack and surfaces blockers before standup |
 
 ---
 
@@ -209,9 +237,10 @@ Main process (Node.js)
 |--------|------|
 | ✅ | Streaming chat, multi-provider, slash commands |
 | ✅ | Memory pane, FTS5 + GraphRAG retrieval, artifacts |
+| ✅ | Auto-memory: conversation indexing + key fact extraction |
+| ✅ | Frequency-weighted retrieval + knowledge graph |
+| ✅ | Usage tracking: savings card, plateau chart, per-conversation breakdown |
 | ✅ | Sprint Analysis Skill + Slack scheduler |
-| ✅ | Auto-memory: conversation indexing, key fact extraction, frequency-weighted retrieval |
-| ✅ | Usage tracking: token savings, plateau chart, per-conversation breakdown |
 | 🔨 | Jira context pull (issues + sprint data → memory auto-sync) |
 | 🔨 | GitHub PR and issue context |
 | 🔨 | Skill builder — save any conversation as a reusable automation |
@@ -257,5 +286,5 @@ MIT — see [LICENSE](LICENSE)
 
 <p align="center">
   Built by <a href="https://github.com/sanoopsandy">Sanoop</a> &nbsp;·&nbsp;
-  If Relay saves you time or money, a ⭐ helps more people find it.
+  If Relay saves you money, a ⭐ helps more people find it.
 </p>
