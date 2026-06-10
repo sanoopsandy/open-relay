@@ -49,6 +49,7 @@ export function useStream(): void {
       const { conversationId, message } = payload as StreamDonePayload;
       if (isActiveConversation(conversationId)) {
         useChatStore.getState().finalizeStream(message);
+        useArtifactStore.getState().finalizeStuckArtifacts(); // clear any artifact stuck on "writing…"
         useArtifactStore.getState().associateArtifactsWithMessage(message.id);
       }
       void refreshConversationList();

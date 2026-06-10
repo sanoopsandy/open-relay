@@ -308,11 +308,22 @@ class AgentRunner {
                 id: event.id,
                 name: event.name,
                 language: event.language,
-                ...(event.type === 'finalized' ? { content: event.content } : {}),
+                ...(event.type !== 'created' ? { content: event.content } : {}),
               });
             }
           }
         } else if (chunk.type === 'done') {
+          // Flush any artifact that never got a closing fence (truncated by max_tokens)
+          const flushedEvents = parser.flush(accumulated);
+          for (const event of flushedEvents) {
+            finalizedArtifacts.push({ id: event.id, name: event.name, language: event.language, content: event.content });
+            if (!webContents.isDestroyed()) {
+              webContents.send('artifact:finalized', {
+                id: event.id, name: event.name, language: event.language, content: event.content,
+              });
+            }
+          }
+
           // Compute turn index and full-history estimate for usage tracking
           const turnIndex = Math.floor(conv.messages.length / 2);
           const fullHistoryTokens = conv.messages.reduce(

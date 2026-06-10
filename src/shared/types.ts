@@ -152,6 +152,7 @@ export interface Attachment {
   name: string;
   mimeType: string;
   size: number;
+  dataUrl?: string; // base64 data URL for images — avoids file:// CSP block in renderer
 }
 
 export interface MemoryItem {
@@ -301,6 +302,7 @@ export interface IPC {
   'artifact:created': { id: string; name: string; language: string };
   'artifact:finalized': { id: string; name: string; language: string; content: string };
   'artifact:download': (dto: { name: string; content: string }) => Promise<void>;
+  'artifact:conversationsWithArtifacts': () => Promise<string[]>;
   'artifact:listByConversation': (conversationId: string) => Promise<PersistedArtifact[]>;
 
   // ── Dialog ───────────────────────────────────────────────────────────────────

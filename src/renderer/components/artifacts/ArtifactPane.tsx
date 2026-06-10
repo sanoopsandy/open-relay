@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github.css';
 import { useArtifactStore } from '../../stores/artifactStore';
@@ -51,7 +51,7 @@ function HighlightedCode({ code, language }: { code: string; language: string })
 }
 
 export default function ArtifactPane() {
-  const { artifacts, remove, focusArtifactId, setFocusArtifactId } = useArtifactStore();
+  const { artifacts, streamingIds, remove, focusArtifactId, setFocusArtifactId } = useArtifactStore();
   const layout = useLayoutStore();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('preview');
@@ -98,6 +98,15 @@ export default function ArtifactPane() {
 
   const active = artifacts.find((a) => a.id === activeId) ?? null;
   const isHtml = active?.language === 'html';
+  const isStreaming = active ? streamingIds.has(active.id) : false;
+
+  // Auto-scroll streaming code view to bottom
+  const streamCodeRef = useRef<HTMLPreElement>(null);
+  useEffect(() => {
+    if (isStreaming && streamCodeRef.current) {
+      streamCodeRef.current.scrollTop = streamCodeRef.current.scrollHeight;
+    }
+  }, [active?.content, isStreaming]);
 
   return (
     <div className="h-full flex flex-col bg-[--bg-base] text-[--text-primary] text-xs border-l border-[--border]">
@@ -176,24 +185,40 @@ export default function ArtifactPane() {
           <div className="flex items-center justify-center h-full text-[--text-muted] text-[11px]">
             No artifacts yet
           </div>
-        ) : !active.content ? (
-          /* Generating skeleton */
-          <div className="flex flex-col gap-2 p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <span
-                className="w-2 h-2 rounded-full animate-pulse"
-                style={{ backgroundColor: langColor(active.language) }}
-              />
-              <span className="text-[--text-secondary] text-[11px]">{active.name}</span>
-              <span className="text-[--text-muted] text-[10px] italic">generating…</span>
+        ) : isStreaming ? (
+          /* Live streaming view */
+          <div className="flex flex-col h-full min-h-0">
+            {/* Streaming status bar */}
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-[--border] flex-none bg-[--bg-overlay]">
+              <span className="relative flex h-2 w-2">
+                <span
+                  className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
+                  style={{ backgroundColor: langColor(active.language) }}
+                />
+                <span
+                  className="relative inline-flex rounded-full h-2 w-2"
+                  style={{ backgroundColor: langColor(active.language) }}
+                />
+              </span>
+              <span className="text-[--text-primary] text-[11px] flex-1 truncate font-medium">{active.name}</span>
+              {active.content && (
+                <span className="text-[--text-muted] text-[10px]">
+                  {active.content.split('\n').length} lines · {(active.content.length / 1024).toFixed(1)} KB
+                </span>
+              )}
+              <span className="text-[10px] px-2 py-0.5 rounded-full font-medium animate-pulse"
+                style={{ backgroundColor: `${langColor(active.language)}15`, color: langColor(active.language) }}>
+                writing…
+              </span>
             </div>
-            {[90, 75, 85, 60, 70, 55, 80].map((w, i) => (
-              <div
-                key={i}
-                className="h-3 rounded bg-[--bg-active] animate-pulse"
-                style={{ width: `${w}%`, animationDelay: `${i * 80}ms` }}
-              />
-            ))}
+            {/* Live code preview — scrolls to bottom as content arrives */}
+            <pre
+              ref={streamCodeRef}
+              className="flex-1 overflow-auto m-0 bg-[--bg-base] px-5 py-4"
+              style={{ fontFamily: 'ui-monospace, monospace', fontSize: '11px', lineHeight: '1.65', color: 'var(--text-secondary)' }}
+            >
+              {active.content || ''}
+            </pre>
           </div>
         ) : (
           <div className="flex flex-col h-full min-h-0">

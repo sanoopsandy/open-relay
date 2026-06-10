@@ -165,11 +165,17 @@ export function registerHandlers(mainWindow: BrowserWindow): void {
     });
     if (result.canceled || result.filePaths.length === 0) return null;
     const fp = result.filePaths[0];
+    const mimeType = getMimeType(fp);
+    const isImage = mimeType.startsWith('image/');
+    const dataUrl = isImage
+      ? `data:${mimeType};base64,${fs.readFileSync(fp).toString('base64')}`
+      : undefined;
     return {
       filePath: fp,
       name: path.basename(fp),
-      mimeType: getMimeType(fp),
+      mimeType,
       size: fs.statSync(fp).size,
+      dataUrl,
     };
   });
 
@@ -181,6 +187,10 @@ export function registerHandlers(mainWindow: BrowserWindow): void {
       fs.writeFileSync(result.filePath, content, 'utf8');
       log.main.info({ filePath: result.filePath }, 'Artifact downloaded');
     }
+  });
+
+  ipcMain.handle('artifact:conversationsWithArtifacts', () => {
+    return artifactRepo.getConversationIdsWithArtifacts();
   });
 
   ipcMain.handle('artifact:listByConversation', (_event, conversationId: string) => {

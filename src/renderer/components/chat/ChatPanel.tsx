@@ -27,6 +27,7 @@ export default function ChatPanel({ config }: ChatPanelProps) {
   const {
     artifacts,
     add: addArtifact,
+    updateContent: updateArtifactContent,
     clear: clearArtifacts,
     switchConversation,
     trackStreamArtifact,
@@ -48,6 +49,11 @@ export default function ChatPanel({ config }: ChatPanelProps) {
       layout.openArtifactPane();
     });
 
+    const unsubDelta = window.relay.on('artifact:delta', (payload) => {
+      const { id, content } = payload as { id: string; content: string };
+      updateArtifactContent(id, content);
+    });
+
     const unsubFinalized = window.relay.on('artifact:finalized', (payload) => {
       const artifact = payload as { id: string; name: string; language: string; content: string };
       addArtifact(artifact);
@@ -56,9 +62,10 @@ export default function ChatPanel({ config }: ChatPanelProps) {
 
     return () => {
       unsubCreated();
+      unsubDelta();
       unsubFinalized();
     };
-  }, [addArtifact, layout.openArtifactPane]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [addArtifact, updateArtifactContent, layout.openArtifactPane]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Listen for new/clear conversation requests
   useEffect(() => {
@@ -97,7 +104,11 @@ export default function ChatPanel({ config }: ChatPanelProps) {
     switchConversation(activeConversationId);
     window.relay
       .invoke('artifact:listByConversation', activeConversationId)
-      .then((persisted) => loadPersisted(persisted as import('../../../shared/types').PersistedArtifact[]))
+      .then((persisted) => {
+        const list = persisted as import('../../../shared/types').PersistedArtifact[];
+        loadPersisted(list);
+        if (list.length > 0) layout.openArtifactPane();
+      })
       .catch(console.error);
   }, [activeConversationId]); // eslint-disable-line react-hooks/exhaustive-deps
 

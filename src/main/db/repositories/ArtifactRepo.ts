@@ -23,6 +23,12 @@ class ArtifactRepo {
     log.db.debug({ id: artifact.id, name: artifact.name }, 'Artifact saved');
   }
 
+  getConversationIdsWithArtifacts(): string[] {
+    const db = getDb();
+    const rows = db.prepare('SELECT DISTINCT conversation_id FROM artifacts').all() as Array<{ conversation_id: string }>;
+    return rows.map((r) => r.conversation_id);
+  }
+
   getByConversation(conversationId: string): PersistedArtifact[] {
     const db = getDb();
     const rows = db.prepare(`

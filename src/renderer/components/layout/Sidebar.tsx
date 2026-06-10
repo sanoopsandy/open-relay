@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { HarnessConfig, ConversationSummary, Conversation } from '../../../shared/types';
 import { useChatStore } from '../../stores/chatStore';
 import { useLayoutStore } from '../../stores/layoutStore';
@@ -19,10 +19,12 @@ export default function Sidebar({ config: _config }: SidebarProps) {
   } = useChatStore();
 
   const layout = useLayoutStore();
+  const [artifactConvIds, setArtifactConvIds] = useState<Set<string>>(new Set());
 
   // Load conversations on mount and on new-conversation events
   useEffect(() => {
     loadConversations();
+    loadArtifactIds();
 
     const unsubNew = window.relay.on('chat:newConversation', () => {
       loadConversations();
@@ -33,8 +35,24 @@ export default function Sidebar({ config: _config }: SidebarProps) {
       updateConversationTitle(conversationId, title);
     });
 
-    return () => { unsubNew(); unsubTitle(); };
-  }, [updateConversationTitle]); // eslint-disable-line react-hooks/exhaustive-deps
+    // When a new artifact is finalized, mark that conversation as having artifacts
+    const unsubArtifact = window.relay.on('artifact:finalized', () => {
+      if (activeConversationId) {
+        setArtifactConvIds((prev) => new Set([...prev, activeConversationId]));
+      }
+    });
+
+    return () => { unsubNew(); unsubTitle(); unsubArtifact(); };
+  }, [updateConversationTitle, activeConversationId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function loadArtifactIds() {
+    try {
+      const ids = await window.relay.invoke<string[]>('artifact:conversationsWithArtifacts');
+      setArtifactConvIds(new Set(ids));
+    } catch {
+      // non-critical — sidebar still works without indicators
+    }
+  }
 
   async function loadConversations() {
     try {
@@ -178,7 +196,20 @@ export default function Sidebar({ config: _config }: SidebarProps) {
           >
             <div className="flex-1 min-w-0">
               <div className="truncate font-medium leading-tight">{conv.title}</div>
-              <div className="text-[10px] text-[--text-muted] mt-0.5">{formatTime(conv.updated_at)}</div>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="text-[10px] text-[--text-muted]">{formatTime(conv.updated_at)}</span>
+                {artifactConvIds.has(conv.id) && (
+                  <span
+                    className="flex items-center gap-0.5 text-[9px] text-[--text-muted] opacity-60"
+                    title="Has artifacts"
+                  >
+                    <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </span>
+                )}
+              </div>
             </div>
             <button
               onClick={(e) => handleDeleteConversation(e, conv.id)}

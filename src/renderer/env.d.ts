@@ -39,6 +39,7 @@ type EventChannel =
   | 'memory:itemAdded'
   | 'memory:selectTheme'
   | 'artifact:created'
+  | 'artifact:delta'
   | 'artifact:finalized'
   | 'scheduler:runComplete'
   | 'scheduler:runFailed'

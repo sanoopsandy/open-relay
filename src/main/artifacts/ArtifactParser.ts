@@ -6,7 +6,7 @@
 // Generic fences (```python, ```js) are ignored — they stay in the chat only.
 
 export interface ArtifactEvent {
-  type: 'created' | 'finalized';
+  type: 'created' | 'delta' | 'finalized';
   id: string;
   name: string;
   language: string;
@@ -20,7 +20,11 @@ interface TrackedArtifact {
   contentStart: number;
   notifiedCreated: boolean;
   finalized: boolean;
+  lastDeltaLen: number; // content length at last delta emission
 }
+
+// Send a delta every DELTA_INTERVAL characters to avoid flooding the renderer
+const DELTA_INTERVAL = 300;
 
 // Matches: ```lang filename.ext (filename must contain a dot)
 const OPENING = /^```(\w+)\s+(\S+\.\S+)\s*$/gm;
@@ -50,6 +54,7 @@ export class ArtifactParser {
           contentStart,
           notifiedCreated: false,
           finalized: false,
+          lastDeltaLen: 0,
         });
       }
 
@@ -65,10 +70,27 @@ export class ArtifactParser {
         events.push({ type: 'finalized', id: entry.id, name: entry.name, language: entry.language, content });
       } else if (!entry.notifiedCreated) {
         entry.notifiedCreated = true;
+        entry.lastDeltaLen = 0;
         events.push({ type: 'created', id: entry.id, name: entry.name, language: entry.language, content: '' });
+      } else if (rest.length - entry.lastDeltaLen >= DELTA_INTERVAL) {
+        // Throttled live update so the user can see progress
+        entry.lastDeltaLen = rest.length;
+        events.push({ type: 'delta', id: entry.id, name: entry.name, language: entry.language, content: rest });
       }
     }
 
+    return events;
+  }
+
+  // Call when the stream ends — finalizes any artifact that never got a closing fence.
+  flush(accumulated: string): ArtifactEvent[] {
+    const events: ArtifactEvent[] = [];
+    for (const entry of this.tracked.values()) {
+      if (entry.finalized || !entry.notifiedCreated) continue;
+      const content = accumulated.slice(entry.contentStart).replace(/\n$/, '');
+      entry.finalized = true;
+      events.push({ type: 'finalized', id: entry.id, name: entry.name, language: entry.language, content });
+    }
     return events;
   }
 

@@ -9,6 +9,9 @@ interface ArtifactStoreState {
   // Permanent registry — artifacts are never deleted from here, only from tabs
   artifactRegistry: Record<string, Artifact>;
 
+  // IDs of artifacts currently streaming (created but not yet finalized)
+  streamingIds: Set<string>;
+
   // Per-message artifact association (UUID keys → no collision across conversations)
   streamArtifactIds: string[];
   messageArtifacts: Record<string, string[]>; // messageId → artifactIds
@@ -18,11 +21,13 @@ interface ArtifactStoreState {
 
   switchConversation: (id: string) => void;
   add: (artifact: Artifact) => void;
+  updateContent: (id: string, content: string) => void;
   remove: (id: string) => void;
   clear: () => void;
 
   trackStreamArtifact: (id: string) => void;
   associateArtifactsWithMessage: (messageId: string) => void;
+  finalizeStuckArtifacts: () => void;
   setFocusArtifactId: (id: string | null) => void;
   loadPersisted: (persisted: PersistedArtifact[]) => void;
 }
@@ -33,6 +38,7 @@ export const useArtifactStore = create<ArtifactStoreState>((set) => ({
   artifacts: [],
 
   artifactRegistry: {},
+  streamingIds: new Set<string>(),
 
   streamArtifactIds: [],
   messageArtifacts: {},
@@ -51,13 +57,32 @@ export const useArtifactStore = create<ArtifactStoreState>((set) => ({
       const updated = existing.some((a) => a.id === artifact.id)
         ? existing.map((a) => (a.id === artifact.id ? artifact : a))
         : [...existing, artifact];
+      // Track streaming state: no content = streaming started; content present = finalized
+      const newStreamingIds = new Set(s.streamingIds);
+      if (!artifact.content) {
+        newStreamingIds.add(artifact.id);
+      } else {
+        newStreamingIds.delete(artifact.id);
+      }
       return {
         byConversation: { ...s.byConversation, [convId]: updated },
         artifacts: updated,
+        streamingIds: newStreamingIds,
         // Registry is permanent — only add/update, never remove
         artifactRegistry: artifact.content
           ? { ...s.artifactRegistry, [artifact.id]: artifact }
           : s.artifactRegistry,
+      };
+    }),
+
+  updateContent: (id, content) =>
+    set((s) => {
+      const convId = s.currentConversationId ?? '';
+      const existing = s.byConversation[convId] ?? [];
+      const updated = existing.map((a) => (a.id === id ? { ...a, content } : a));
+      return {
+        byConversation: { ...s.byConversation, [convId]: updated },
+        artifacts: updated,
       };
     }),
 
@@ -82,6 +107,19 @@ export const useArtifactStore = create<ArtifactStoreState>((set) => ({
 
   trackStreamArtifact: (id) =>
     set((s) => ({ streamArtifactIds: [...s.streamArtifactIds, id] })),
+
+  finalizeStuckArtifacts: () =>
+    set((s) => {
+      if (s.streamingIds.size === 0) return s;
+      const convId = s.currentConversationId ?? '';
+      const convArtifacts = s.byConversation[convId] ?? [];
+      const registry = { ...s.artifactRegistry };
+      s.streamingIds.forEach((id) => {
+        const a = convArtifacts.find((x) => x.id === id);
+        if (a) registry[id] = a; // persist partial content so it's viewable
+      });
+      return { streamingIds: new Set<string>(), artifactRegistry: registry };
+    }),
 
   associateArtifactsWithMessage: (messageId) =>
     set((s) => ({

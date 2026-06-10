@@ -195,7 +195,7 @@ export default function MessageComposer({ onSend, disabled = false, conversation
             a.mimeType.startsWith('image/') ? (
               <div key={a.filePath} className="relative group">
                 <img
-                  src={`file://${a.filePath}`}
+                  src={a.dataUrl ?? `file://${a.filePath}`}
                   alt={a.name}
                   className="h-20 w-20 object-cover rounded-xl border border-[--border]"
                 />
