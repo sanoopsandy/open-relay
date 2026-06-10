@@ -28,7 +28,7 @@ const PROVIDER_LABELS: Record<string, string> = {
 };
 
 const PROVIDER_MODELS: Record<string, string[]> = {
-  claude: ['claude-opus-4-5', 'claude-sonnet-4-5', 'claude-haiku-4-5-20251001'],
+  claude: ['claude-opus-4-8', 'claude-fable-5', 'claude-opus-4-5', 'claude-sonnet-4-6', 'claude-sonnet-4-5', 'claude-haiku-4-5-20251001'],
   openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'],
   groq: ['llama-3.1-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'],
   ollama: [],
@@ -36,7 +36,7 @@ const PROVIDER_MODELS: Record<string, string[]> = {
 };
 
 const DEFAULT_MODELS: Record<string, string> = {
-  claude: 'claude-sonnet-4-5',
+  claude: 'claude-sonnet-4-6',
   openai: 'gpt-4o',
   groq: 'llama-3.1-70b-versatile',
   ollama: 'llama3.2',

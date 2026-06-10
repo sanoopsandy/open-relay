@@ -109,7 +109,7 @@ class OnboardingWizard {
 
   getDefaultConfig(
     provider: HarnessConfig['ai']['provider'] = 'claude',
-    model = 'claude-sonnet-4-5'
+    model = 'claude-sonnet-4-6'
   ): HarnessConfig {
     return configManager.getDefaults(provider, '', model);
   }

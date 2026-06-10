@@ -13,7 +13,10 @@ import { log } from '../../logger';
 // ─── Cost table (USD per 1M tokens) ──────────────────────────────────────────
 
 const COST_TABLE: Record<string, { input: number; output: number }> = {
+  'claude-opus-4-8':               { input: 15.0,  output: 75.0  },
+  'claude-fable-5':                { input: 3.0,   output: 15.0  },
   'claude-opus-4-5':               { input: 5.0,   output: 25.0  },
+  'claude-sonnet-4-6':             { input: 3.0,   output: 15.0  },
   'claude-sonnet-4-5':             { input: 3.0,   output: 15.0  },
   'claude-haiku-4-5-20251001':     { input: 0.25,  output: 1.25  },
 };
@@ -21,6 +24,31 @@ const COST_TABLE: Record<string, { input: number; output: number }> = {
 function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
   const rates = COST_TABLE[model] ?? { input: 3.0, output: 15.0 };
   return (inputTokens * rates.input + outputTokens * rates.output) / 1_000_000;
+}
+
+// Newer Claude models (4.6+, 4.8, fable-5) deprecate the temperature parameter
+const NO_TEMPERATURE_MODELS = new Set([
+  'claude-opus-4-8',
+  'claude-fable-5',
+  'claude-sonnet-4-6',
+]);
+
+function allowsTemperature(model: string): boolean {
+  return !NO_TEMPERATURE_MODELS.has(model);
+}
+
+// Max output tokens per model — Anthropic API requires max_tokens; use model's actual ceiling
+const MAX_OUTPUT_TOKENS: Record<string, number> = {
+  'claude-opus-4-8':           32768,
+  'claude-fable-5':            64000,
+  'claude-sonnet-4-6':         64000,
+  'claude-opus-4-5':           32768,
+  'claude-sonnet-4-5':         8192,
+  'claude-haiku-4-5-20251001': 8192,
+};
+
+function modelMaxTokens(model: string): number {
+  return MAX_OUTPUT_TOKENS[model] ?? 8192;
 }
 
 const ERROR_LABELS: Record<string, string> = {
@@ -63,9 +91,12 @@ export class ClaudeProvider implements AIProvider {
   readonly id = 'claude';
   readonly displayName = 'Anthropic Claude';
   readonly supportsEmbeddings = false;
-  readonly defaultModel = 'claude-sonnet-4-5';
+  readonly defaultModel = 'claude-sonnet-4-6';
   readonly availableModels = [
+    'claude-opus-4-8',
+    'claude-fable-5',
     'claude-opus-4-5',
+    'claude-sonnet-4-6',
     'claude-sonnet-4-5',
     'claude-haiku-4-5-20251001',
   ];
@@ -101,8 +132,8 @@ export class ClaudeProvider implements AIProvider {
 
     const response = await this.client.messages.create({
       model,
-      max_tokens: options.maxTokens ?? 4096,
-      temperature: options.temperature,
+      max_tokens: options.maxTokens ?? modelMaxTokens(model),
+      ...(allowsTemperature(model) && options.temperature !== undefined ? { temperature: options.temperature } : {}),
       system: systemPrompt,
       messages: anthropicMessages,
       tools: options.tools?.map((t) => ({
@@ -168,8 +199,8 @@ export class ClaudeProvider implements AIProvider {
     try {
       const stream = this.client.messages.stream({
         model,
-        max_tokens: options.maxTokens ?? 4096,
-        temperature: options.temperature,
+        max_tokens: options.maxTokens ?? modelMaxTokens(model),
+        ...(allowsTemperature(model) && options.temperature !== undefined ? { temperature: options.temperature } : {}),
         system: systemPrompt,
         messages: anthropicMessages,
         tools: options.tools?.map((t) => ({
