@@ -12,7 +12,7 @@ import { log } from '../logger';
 const RECENCY_LAMBDA = 0.05;  // 14-day half-life
 const FREQ_DECAY_K   = 5;     // freqBoost saturates ~1.0 at access_count ≈ 15
 const TOKEN_CAP = 3000;
-const SIM_THRESHOLD = 0.25;   // Minimum cosine similarity to include a result
+const SIM_THRESHOLD = 0.35;   // Hard minimum cosine similarity — items below this are excluded regardless of recency/freq
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -106,14 +106,17 @@ class ContextAssembler {
     // Vector search: turns from other conversations
     const similarTurns = embeddingStore.searchTurns(queryVec, 10, conversation.id);
 
-    // Graph expansion (1-hop via Kuzu) — enriches candidate sets
-    const turnIds = similarTurns.map((t) => t.messageId);
-    const memoryIds = similarMemory.map((m) => m.memoryId);
-    const expandedMemoryIds = await kuzuGraph.getRelatedMemoryIds(turnIds);
-    const expandedTurnIds = await kuzuGraph.getRelatedTurnIds(memoryIds);
+    // Only use turns above threshold for graph expansion — weak matches would pollute it
+    const strongTurnIds = similarTurns.filter((t) => t.similarity >= SIM_THRESHOLD).map((t) => t.messageId);
+    const strongMemoryIds = similarMemory.filter((m) => m.similarity >= SIM_THRESHOLD).map((m) => m.memoryId);
 
-    // Merge candidate memory IDs (vector matches + graph expansion)
-    const allMemoryIds = [...new Set([...memoryIds, ...expandedMemoryIds])];
+    // Graph expansion (1-hop via Kuzu) — enriches candidate sets
+    const expandedMemoryIds = await kuzuGraph.getRelatedMemoryIds(strongTurnIds);
+    const expandedTurnIds = await kuzuGraph.getRelatedTurnIds(strongMemoryIds);
+
+    // Memory: only use direct vector matches (graph expansion too noisy for memory items)
+    // Turns: allow graph expansion since entity co-occurrence is a stronger signal there
+    const allMemoryIds = [...new Set([...strongMemoryIds])];
 
     // Fetch full memory item content
     const memoryItems: MemoryItem[] = allMemoryIds
@@ -125,20 +128,22 @@ class ContextAssembler {
       conversationId: conversation.id,
       memoryHits: similarMemory.map((m) => ({ id: m.memoryId, sim: +m.similarity.toFixed(3), freq: m.accessCount })),
       turnHits: similarTurns.map((t) => ({ id: t.messageId, sim: +t.similarity.toFixed(3), freq: t.accessCount, snippet: t.contentSnippet.slice(0, 80) })),
+      strongMemoryIds,
       expandedMemoryIds,
       expandedTurnIds,
     }, '[TEMP] GraphRAG: raw retrieval hits');
 
-    // Score memory items: sim × 0.35 + recency × 0.35 + freqBoost × 0.30
+    // Score memory items: only direct vector matches above threshold (allMemoryIds = strongMemoryIds)
+    // sim is always present in memorySimMap for these items
     const scoredMemory = memoryItems
       .map((item) => {
-        const entry = memorySimMap.get(item.id);
-        const sim   = entry?.similarity ?? 0.35;
-        const freq  = entry?.accessCount ?? 0;
+        const entry = memorySimMap.get(item.id)!;
+        const sim   = entry.similarity;
+        const freq  = entry.accessCount;
         const score = sim * 0.35 + recencyScore(item.created_at) * 0.35 + freqBoost(freq) * 0.30;
         return { item, score, sim };
       })
-      .filter(({ sim }) => sim >= SIM_THRESHOLD || memorySimMap.has('') === false) // keep graph-expanded even if below threshold
+      .filter(({ sim }) => sim >= SIM_THRESHOLD) // hard gate — no bypass
       .sort((a, b) => b.score - a.score);
 
     // [TEMP] log scored memory items
@@ -152,28 +157,8 @@ class ContextAssembler {
       })),
     }, '[TEMP] GraphRAG: scored memory items');
 
-    // Merge candidate turn IDs (vector matches + graph expansion)
-    const allTurnSimMap = new Map(similarTurns.map((t) => [t.messageId, t]));
-    const expandedOnlyIds = expandedTurnIds.filter((id) => !allTurnSimMap.has(id));
-
-    // For graph-expanded turns without similarity score, use a default
-    const expandedTurnDetails = expandedOnlyIds
-      .map((id) => {
-        const rows = (() => {
-          try {
-            return embeddingStore.searchTurns(queryVec, 1);
-          } catch {
-            return [];
-          }
-        })();
-        return rows.find((r) => r.messageId === id) ?? null;
-      })
-      .filter((t): t is NonNullable<typeof t> => t !== null);
-
-    const allScoredTurns = [
-      ...similarTurns.filter((t) => t.similarity >= SIM_THRESHOLD),
-      ...expandedTurnDetails,
-    ];
+    // Use only vector-matched turns above threshold (graph expansion used to find related memory items)
+    const allScoredTurns = similarTurns.filter((t) => t.similarity >= SIM_THRESHOLD);
 
     // Score turns: sim × 0.35 + recency × 0.35 + freqBoost × 0.30
     const scoredTurns = allScoredTurns

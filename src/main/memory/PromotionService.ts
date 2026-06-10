@@ -123,6 +123,15 @@ class PromotionService {
           : turn.contentSnippet.slice(0, EXTRACT_INPUT_MAX);
 
         const theme = (turn.conversationTitle || 'general').toLowerCase().trim();
+
+        // Skip conversations that haven't been titled yet — "new conversation" / "general"
+        // are catch-all buckets that cause unrelated context to leak across conversations
+        if (theme === 'new conversation' || theme === 'general') {
+          embeddingStore.markPromoted(turn.messageId); // don't re-check, just skip cleanly
+          log.memory.debug({ messageId: turn.messageId }, 'PromotionService: skipped — no real title yet');
+          continue;
+        }
+
         const item = memoryRepo.insert(theme, memoryContent, 'auto');
 
         embeddingStore.insertMemory(item.id, embedding, item.created_at);
